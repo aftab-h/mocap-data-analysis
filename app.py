@@ -71,8 +71,12 @@ def main():
     # Data management section
     st.sidebar.header("1. Data Management")
 
-    data_dir = Path("data/raw")
-    available_files = list_available_files(str(data_dir))
+    # Check multiple data directories
+    data_dirs = [Path("data/sfu"), Path("data/raw")]
+    available_files = []
+    for data_dir in data_dirs:
+        if data_dir.exists():
+            available_files.extend(list_available_files(str(data_dir)))
 
     if not available_files:
         st.sidebar.warning("No data files found.")
