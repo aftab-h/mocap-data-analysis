@@ -271,7 +271,10 @@ def main():
                 })
                 st.dataframe(desc_stats, hide_index=True, use_container_width=True)
 
-                st.markdown("")
+                # --- ANALYSIS SECTION ---
+                st.markdown("---")
+                st.header("Analysis")
+                st.caption("Welch's t-test")
 
                 # Strip plot
                 fig_strip = px.strip(
@@ -284,24 +287,60 @@ def main():
                     color_discrete_map=color_map
                 )
                 fig_strip.update_traces(marker=dict(size=12, opacity=0.7))
+
+                # Add mean lines for each group
+                for i, activity in enumerate([group1_name, group2_name]):
+                    group_mean = metrics_df[metrics_df['activity'] == activity]['mean_speed'].mean()
+                    fig_strip.add_shape(
+                        type="line",
+                        x0=i - 0.3, x1=i + 0.3,
+                        y0=group_mean, y1=group_mean,
+                        line=dict(color=color_map[activity], width=3, dash="solid"),
+                    )
+                    # Add mean value annotation
+                    fig_strip.add_annotation(
+                        x=i + 0.35,
+                        y=group_mean,
+                        text=f"μ={group_mean:.1f}",
+                        showarrow=False,
+                        font=dict(size=11, color=color_map[activity]),
+                        xanchor="left"
+                    )
+
                 fig_strip.update_layout(
-                    title="Average Speed by Activity",
-                    height=400,
+                    height=350,
                     showlegend=False,
-                    margin=dict(t=50, b=30)
+                    margin=dict(t=20, b=30)
                 )
                 st.plotly_chart(fig_strip, use_container_width=True)
 
                 st.markdown("")
 
-                # Inferential statistics
+                # Inferential statistics with color coding
                 mean_diff = abs(group1_data.mean() - group2_data.mean())
-                st.markdown(f"""
-**{group1_name.title()} vs {group2_name.title()}**
-Mean difference: {mean_diff:.2f} cm/s
-{sig_marker}t = {t_stat:.2f}, {p_str}{sig_marker}
-{effect_size_name} = {effect_size:.2f} ({effect_label} effect)
-                """)
+
+                # Color for p-value: green if significant, red if not
+                p_color = "#4ade80" if p_val < 0.05 else "#f87171"
+
+                # Color for effect size: gradient from red (negligible) to green (large)
+                effect_colors = {
+                    "negligible": "#f87171",  # red
+                    "small": "#fb923c",       # orange
+                    "medium": "#facc15",      # yellow
+                    "large": "#4ade80"        # green
+                }
+                effect_color = effect_colors.get(effect_label, "#ffffff")
+
+                st.markdown(f"**{group1_name.title()} vs {group2_name.title()}**")
+                st.markdown(f"Mean difference: **{mean_diff:.2f} cm/s**")
+                st.markdown(
+                    f't = {t_stat:.2f}, <span style="color:{p_color}; font-weight:600">{p_str}</span>',
+                    unsafe_allow_html=True
+                )
+                st.markdown(
+                    f'{effect_size_name} = {effect_size:.2f} (<span style="color:{effect_color}; font-weight:600">{effect_label} effect</span>)',
+                    unsafe_allow_html=True
+                )
 
                 with st.expander("How is this calculated?"):
                     st.markdown("""
