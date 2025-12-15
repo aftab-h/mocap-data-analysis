@@ -208,12 +208,26 @@ def main():
         st.subheader("Metrics Summary")
         display_cols = ['file', 'activity', 'mean_speed', 'max_speed', 'max_acceleration', 'stability_index']
         display_df = metrics_df[display_cols].copy()
-        display_df.columns = ['File', 'Activity', 'Mean Speed', 'Max Speed', 'Max Accel', 'Stability']
+        display_df.columns = ['File', 'Activity', 'Avg Speed (cm/s)', 'Max Speed (cm/s)', 'Max Accel (cm/s²)', 'Stability']
         display_df = display_df.round(2)
         st.dataframe(display_df, use_container_width=True, hide_index=True)
 
+        # Metrics explanation
+        with st.expander("What do these metrics mean?"):
+            st.markdown("""
+            | Metric | Unit | Description |
+            |--------|------|-------------|
+            | **Avg Speed** | cm/s | Average head velocity magnitude across all frames |
+            | **Max Speed** | cm/s | Peak instantaneous head velocity |
+            | **Max Accel** | cm/s² | Peak instantaneous acceleration (rate of velocity change) |
+            | **Stability** | index | Combined variability measure: `std(speed) + 0.1 × std(acceleration)`. Lower = more stable head. |
+            """)
+
     with col2:
         st.subheader("Activity Comparison")
+
+        # Store stats for writeup section
+        stats_results = None
 
         if len(metrics_df['activity'].unique()) >= 2:
             # Strip plot showing individual data points
@@ -223,7 +237,7 @@ def main():
                 y='mean_speed',
                 color='activity',
                 hover_data=['file', 'max_speed', 'stability_index'],
-                labels={'mean_speed': 'Mean Speed (cm/s)', 'activity': 'Activity'},
+                labels={'mean_speed': 'Avg Speed (cm/s)', 'activity': 'Activity'},
                 color_discrete_map=color_map
             )
             fig_strip.update_traces(marker=dict(size=12, opacity=0.7))
@@ -237,8 +251,10 @@ def main():
             # Statistical comparison
             activities = metrics_df['activity'].unique()
             if len(activities) == 2:
-                group1_data = metrics_df[metrics_df['activity'] == activities[0]]['mean_speed']
-                group2_data = metrics_df[metrics_df['activity'] == activities[1]]['mean_speed']
+                group1_name = activities[0]
+                group2_name = activities[1]
+                group1_data = metrics_df[metrics_df['activity'] == group1_name]['mean_speed']
+                group2_data = metrics_df[metrics_df['activity'] == group2_name]['mean_speed']
 
                 if len(group1_data) >= 2 and len(group2_data) >= 2:
                     from scipy import stats
@@ -260,6 +276,36 @@ def main():
                     else:
                         effect_label = "large"
 
+                    # Determine which is higher
+                    if group1_data.mean() > group2_data.mean():
+                        higher_name, lower_name = group1_name, group2_name
+                        higher_data, lower_data = group1_data, group2_data
+                    else:
+                        higher_name, lower_name = group2_name, group1_name
+                        higher_data, lower_data = group2_data, group1_data
+
+                    ratio = higher_data.mean() / lower_data.mean()
+
+                    # Store for writeup
+                    stats_results = {
+                        'group1_name': group1_name,
+                        'group2_name': group2_name,
+                        'group1_n': len(group1_data),
+                        'group2_n': len(group2_data),
+                        'group1_mean': group1_data.mean(),
+                        'group2_mean': group2_data.mean(),
+                        'group1_std': group1_data.std(),
+                        'group2_std': group2_data.std(),
+                        'higher_name': higher_name,
+                        'lower_name': lower_name,
+                        'ratio': ratio,
+                        't_stat': t_stat,
+                        'p_val': p_val,
+                        'cohens_d': cohens_d,
+                        'effect_label': effect_label,
+                        'significant': p_val < 0.05
+                    }
+
                     # Format p-value
                     if p_val < 0.001:
                         p_str = "p < .001"
@@ -269,20 +315,131 @@ def main():
                     sig_marker = "**" if p_val < 0.05 else ""
 
                     st.markdown(f"""
-                    **{activities[0].title()} vs {activities[1].title()}**
+                    **{group1_name.title()} vs {group2_name.title()}**
                     {sig_marker}t = {t_stat:.2f}, {p_str}{sig_marker}
                     Cohen's d = {cohens_d:.2f} ({effect_label} effect)
                     """)
 
-                    # Quick insight
-                    higher = activities[0] if group1_data.mean() > group2_data.mean() else activities[1]
-                    ratio = max(group1_data.mean(), group2_data.mean()) / min(group1_data.mean(), group2_data.mean())
                     if ratio > 1.1:
-                        st.info(f"{higher.title()} shows {ratio:.1f}x higher head speed")
+                        st.info(f"{higher_name.title()} shows {ratio:.1f}x higher head speed")
+
+            # Method explanation
+            with st.expander("How is this calculated?"):
+                st.markdown("""
+                **Statistical Test:** Welch's t-test (independent samples)
+
+                *Why Welch's?* Unlike Student's t-test, Welch's does NOT assume equal variances
+                between groups. This is more robust when comparing activities that may have
+                different variability (e.g., running is more variable than walking).
+
+                **Effect Size:** Cohen's d
+
+                Measures the *practical significance* of the difference:
+                - d < 0.2: negligible
+                - d = 0.2-0.5: small
+                - d = 0.5-0.8: medium
+                - d > 0.8: large
+
+                A large effect size means the difference is meaningful in practice,
+                not just statistically detectable.
+
+                **Strip Plot:** Each dot is one motion capture file. This shows you the
+                actual data distribution, not just summary statistics.
+                """)
         else:
             st.info("Select files from multiple activities to see comparison")
+            stats_results = None
 
-    # --- SECTION 3: 3D TRAJECTORY EXPLORATION ---
+    # --- SECTION 3: AUTO-GENERATED ANALYSIS WRITEUP ---
+    if len(metrics_df['activity'].unique()) >= 2 and stats_results is not None:
+        st.markdown("---")
+        st.header("Analysis Summary")
+
+        # Build the auto-writeup
+        sr = stats_results  # shorthand
+
+        # Descriptive stats paragraph
+        writeup = f"""
+### Methods
+
+Head position data was extracted from BVH motion capture files and low-pass filtered
+(Butterworth, {filter_cutoff} Hz cutoff) to remove high-frequency noise. Average head speed
+(cm/s) was calculated as the primary outcome measure, representing the average magnitude
+of head velocity across all frames.
+
+To compare head stability between activities, we conducted a **Welch's independent
+samples t-test**, which does not assume equal variances between groups. Effect size
+was quantified using **Cohen's d**.
+
+### Results
+
+**Sample:** {sr['group1_name'].title()} (n={sr['group1_n']}) vs {sr['group2_name'].title()} (n={sr['group2_n']})
+
+| Group | Avg Speed | SD |
+|-------|------------|-----|
+| {sr['group1_name'].title()} | {sr['group1_mean']:.2f} cm/s | {sr['group1_std']:.2f} |
+| {sr['group2_name'].title()} | {sr['group2_mean']:.2f} cm/s | {sr['group2_std']:.2f} |
+
+"""
+
+        if sr['significant']:
+            writeup += f"""
+**Finding:** {sr['higher_name'].title()} produced significantly higher head speeds than
+{sr['lower_name']} (*t* = {sr['t_stat']:.2f}, *p* = {sr['p_val']:.3f}, Cohen's *d* = {sr['cohens_d']:.2f}).
+
+This represents a **{sr['effect_label']} effect**, with {sr['higher_name']} showing
+**{sr['ratio']:.1f}x** the head movement of {sr['lower_name']}.
+"""
+        else:
+            writeup += f"""
+**Finding:** No statistically significant difference was found between {sr['group1_name']}
+and {sr['group2_name']} (*t* = {sr['t_stat']:.2f}, *p* = {sr['p_val']:.3f}, Cohen's *d* = {sr['cohens_d']:.2f}).
+"""
+
+        # Add implications
+        writeup += f"""
+### Implications for Wearable Design
+
+"""
+        if sr['significant'] and sr['ratio'] > 1.3:
+            writeup += f"""
+The {sr['ratio']:.1f}x difference in head speed between {sr['higher_name']} and {sr['lower_name']}
+suggests that audio wearables (headphones, earbuds) face substantially different retention
+challenges across activities. Devices designed for {sr['lower_name']} stability may not
+remain secure during {sr['higher_name']}.
+
+**Recommendation:** Retention mechanisms should be tested under {sr['higher_name']}-like
+conditions (peak speeds ~{metrics_df[metrics_df['activity']==sr['higher_name']]['max_speed'].mean():.0f} cm/s)
+to ensure real-world stability.
+"""
+        else:
+            writeup += """
+The activities tested show similar head movement profiles, suggesting that retention
+requirements may be comparable across these use cases.
+"""
+
+        # Add limitations
+        writeup += f"""
+### Limitations
+
+- **Small sample sizes** (n={sr['group1_n']}, n={sr['group2_n']}): Results should be
+  confirmed with larger datasets
+- **Single metric:** Average speed captures overall movement but may miss important
+  temporal patterns (e.g., periodic vs random motion)
+- **Lab vs real-world:** Motion capture data may not fully represent natural movement
+"""
+
+        st.markdown(writeup)
+
+        # Copy button for the writeup
+        st.download_button(
+            label="Download Analysis Report",
+            data=writeup,
+            file_name="head_stability_analysis.md",
+            mime="text/markdown"
+        )
+
+    # --- SECTION 4: 3D TRAJECTORY EXPLORATION ---
     st.markdown("---")
     st.header("Explore 3D Trajectory")
 
