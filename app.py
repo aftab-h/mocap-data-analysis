@@ -266,16 +266,30 @@ def main():
                     # Welch's t-test (does not assume equal variances)
                     t_stat, p_val = stats.ttest_ind(group1_data, group2_data, equal_var=False)
 
-                    # Cohen's d effect size
-                    pooled_std = np.sqrt((group1_data.std()**2 + group2_data.std()**2) / 2)
-                    cohens_d = abs(group1_data.mean() - group2_data.mean()) / pooled_std if pooled_std > 0 else 0
+                    # Effect size: auto-select Cohen's d vs Hedges' g based on sample size
+                    n1, n2 = len(group1_data), len(group2_data)
+                    pooled_std = np.sqrt(((n1-1)*group1_data.std(ddof=1)**2 + (n2-1)*group2_data.std(ddof=1)**2) / (n1+n2-2))
+
+                    if pooled_std > 0:
+                        d = abs(group1_data.mean() - group2_data.mean()) / pooled_std
+                        # Use Hedges' g for small samples (n < 20), Cohen's d otherwise
+                        if n1 < 20 or n2 < 20:
+                            correction = 1 - (3 / (4*(n1+n2) - 9))  # Hedges' correction
+                            effect_size = d * correction
+                            effect_size_name = "Hedges' g"
+                        else:
+                            effect_size = d
+                            effect_size_name = "Cohen's d"
+                    else:
+                        effect_size = 0
+                        effect_size_name = "Cohen's d"
 
                     # Effect size interpretation
-                    if cohens_d < 0.2:
+                    if effect_size < 0.2:
                         effect_label = "negligible"
-                    elif cohens_d < 0.5:
+                    elif effect_size < 0.5:
                         effect_label = "small"
-                    elif cohens_d < 0.8:
+                    elif effect_size < 0.8:
                         effect_label = "medium"
                     else:
                         effect_label = "large"
@@ -305,7 +319,8 @@ def main():
                         'ratio': ratio,
                         't_stat': t_stat,
                         'p_val': p_val,
-                        'cohens_d': cohens_d,
+                        'effect_size': effect_size,
+                        'effect_size_name': effect_size_name,
                         'effect_label': effect_label,
                         'significant': p_val < 0.05
                     }
@@ -321,7 +336,7 @@ def main():
                     st.markdown(f"""
                     **{group1_name.title()} vs {group2_name.title()}**
                     {sig_marker}t = {t_stat:.2f}, {p_str}{sig_marker}
-                    Cohen's d = {cohens_d:.2f} ({effect_label} effect)
+                    {effect_size_name} = {effect_size:.2f} ({effect_label} effect)
                     """)
 
 
@@ -334,13 +349,14 @@ def main():
                 between groups. This is more robust when comparing activities that may have
                 different variability (e.g., running is more variable than walking).
 
-                **Effect Size:** Cohen's d
+                **Effect Size:** Cohen's d (n ≥ 20) or Hedges' g (n < 20)
 
-                Measures the *practical significance* of the difference:
-                - d < 0.2: negligible
-                - d = 0.2-0.5: small
-                - d = 0.5-0.8: medium
-                - d > 0.8: large
+                Hedges' g applies a small-sample correction to Cohen's d, reducing bias
+                when group sizes are under 20. Interpretation is the same for both:
+                - < 0.2: negligible
+                - 0.2-0.5: small
+                - 0.5-0.8: medium
+                - > 0.8: large
 
                 A large effect size means the difference is meaningful in practice,
                 not just statistically detectable.
@@ -371,7 +387,7 @@ of head velocity across all frames.
 
 To compare head stability between activities, we conducted a **Welch's independent
 samples t-test**, which does not assume equal variances between groups. Effect size
-was quantified using **Cohen's d**.
+was quantified using **{sr['effect_size_name']}**.
 
 ### Results
 
@@ -387,7 +403,7 @@ was quantified using **Cohen's d**.
         if sr['significant']:
             writeup += f"""
 **Finding:** {sr['higher_name'].title()} produced significantly higher head speeds than
-{sr['lower_name']} (*t* = {sr['t_stat']:.2f}, *p* = {sr['p_val']:.3f}, Cohen's *d* = {sr['cohens_d']:.2f}).
+{sr['lower_name']} (*t* = {sr['t_stat']:.2f}, *p* = {sr['p_val']:.3f}, {sr['effect_size_name']} = {sr['effect_size']:.2f}).
 
 This represents a **{sr['effect_label']} effect**, with {sr['higher_name']} showing
 **{sr['ratio']:.1f}x** the head movement of {sr['lower_name']}.
@@ -395,7 +411,7 @@ This represents a **{sr['effect_label']} effect**, with {sr['higher_name']} show
         else:
             writeup += f"""
 **Finding:** No statistically significant difference was found between {sr['group1_name']}
-and {sr['group2_name']} (*t* = {sr['t_stat']:.2f}, *p* = {sr['p_val']:.3f}, Cohen's *d* = {sr['cohens_d']:.2f}).
+and {sr['group2_name']} (*t* = {sr['t_stat']:.2f}, *p* = {sr['p_val']:.3f}, {sr['effect_size_name']} = {sr['effect_size']:.2f}).
 """
 
         # Add implications
