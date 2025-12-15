@@ -570,6 +570,15 @@ requirements may be comparable across these use cases.
     # Build animated 3D figure
     fig_3d = go.Figure()
 
+    # Invisible anchor trace to lock axis ranges (not animated)
+    fig_3d.add_trace(go.Scatter3d(
+        x=pos[:, 0], y=pos[:, 2], z=pos[:, 1],
+        mode='markers',
+        marker=dict(size=0, opacity=0),
+        hoverinfo='skip',
+        showlegend=False
+    ))
+
     # Trail (animated)
     fig_3d.add_trace(go.Scatter3d(
         x=pos[:1, 0], y=pos[:1, 2], z=pos[:1, 1],
@@ -609,6 +618,7 @@ requirements may be comparable across these use cases.
 
         frames.append(go.Frame(
             data=[
+                go.Scatter3d(x=pos[:, 0], y=pos[:, 2], z=pos[:, 1]),  # Anchor (unchanged)
                 go.Scatter3d(x=t_pos[:, 0], y=t_pos[:, 2], z=t_pos[:, 1],
                             marker=dict(size=3, color=t_speed, colorscale='Viridis',
                                        cmin=0, cmax=np.percentile(speed, 95))),
