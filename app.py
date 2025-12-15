@@ -425,7 +425,7 @@ def main():
                 yaxis_title="Z (Forward)",
                 zaxis_title="Y (Vertical)",
                 aspectmode='data',
-                camera=dict(projection=dict(type='orthographic'))  # Optional: orthographic view
+                camera=dict(projection=dict(type='perspective'))
             ),
             uirevision='constant',  # Preserve camera position during animation
             scene_camera=dict(eye=dict(x=1.5, y=1.5, z=1.5)),  # Default starting view
@@ -436,10 +436,10 @@ def main():
                 y=-0.05, x=0.0, xanchor="left",
                 buttons=[
                     dict(label="▶ Play", method="animate",
-                         args=[None, {"frame": {"duration": 50, "redraw": False},
+                         args=[None, {"frame": {"duration": 50, "redraw": True},
                                      "fromcurrent": True, "transition": {"duration": 0}}]),
                     dict(label="⏸ Pause", method="animate",
-                         args=[[None], {"frame": {"duration": 0, "redraw": False},
+                         args=[[None], {"frame": {"duration": 0, "redraw": True},
                                        "mode": "immediate"}])
                 ]
             )],
@@ -456,33 +456,6 @@ def main():
         st.plotly_chart(fig_3d, use_container_width=True)
 
         st.caption("Use **Play/Pause** buttons and the **time slider** below the plot for smooth animation.")
-
-        # 2D projections
-        st.subheader("2D Projections")
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            fig_top = px.scatter(
-                x=pos[:, 0], y=pos[:, 2],
-                color=speed_padded,
-                title="Top View (X-Z plane)",
-                labels={'x': 'X (Lateral)', 'y': 'Z (Forward)'},
-                color_continuous_scale='Viridis'
-            )
-            fig_top.update_layout(coloraxis_colorbar_title="Speed")
-            st.plotly_chart(fig_top, use_container_width=True)
-
-        with col2:
-            fig_side = px.scatter(
-                x=pos[:, 2], y=pos[:, 1],
-                color=speed_padded,
-                title="Side View (Z-Y plane)",
-                labels={'x': 'Z (Forward)', 'y': 'Y (Vertical)'},
-                color_continuous_scale='Viridis'
-            )
-            fig_side.update_layout(coloraxis_colorbar_title="Speed")
-            st.plotly_chart(fig_side, use_container_width=True)
 
     # TAB 3: Time Series
     with tab3:
