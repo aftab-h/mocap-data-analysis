@@ -16,6 +16,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from pathlib import Path
 import sys
+import time
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
@@ -323,56 +324,135 @@ def main():
         data = next(d for d in all_data if d['file'] == selected_viz)
         pos = data['positions']
         speed = data['speed']
+        timestamps = data['timestamps']
+        n_frames = len(pos)
 
-        # Create 3D scatter plot
+        # Animation settings
+        col_set1, col_set2 = st.columns(2)
+        with col_set1:
+            frame_step = st.select_slider(
+                "Frame sampling (lower = slower/smoother)",
+                options=[1, 2, 5, 10, 25, 50, 100],
+                value=10,
+                help="Sample every Nth frame - lower values = more frames = slower playback"
+            )
+        with col_set2:
+            trail_frames = st.slider(
+                "Trail length",
+                min_value=5,
+                max_value=100,
+                value=30,
+                help="Past frames shown as trail"
+            )
+
+        # Downsample for animation performance
+        frame_indices = list(range(0, n_frames, frame_step))
+        if frame_indices[-1] != n_frames - 1:
+            frame_indices.append(n_frames - 1)
+
+        fps = data['parser'].fps
+        speed_padded = np.concatenate([[speed[0]], speed])
+
+        # Build animated 3D figure
         fig_3d = go.Figure()
 
-        # Color by speed
-        speed_padded = np.concatenate([[speed[0]], speed])  # Pad to match position length
-
+        # Full path (static background)
         fig_3d.add_trace(go.Scatter3d(
-            x=pos[:, 0],
-            y=pos[:, 2],  # Swap Y and Z for better viewing
-            z=pos[:, 1],
-            mode='lines+markers',
-            marker=dict(
-                size=2,
-                color=speed_padded,
-                colorscale='Viridis',
-                colorbar=dict(title="Speed (cm/s)"),
-                showscale=True
-            ),
-            line=dict(color='rgba(100,100,100,0.5)', width=1),
-            name='Head Trajectory'
+            x=pos[:, 0], y=pos[:, 2], z=pos[:, 1],
+            mode='lines',
+            line=dict(color='rgba(150,150,150,0.25)', width=1),
+            name='Full Path',
+            hoverinfo='skip'
         ))
 
-        # Add start and end markers
+        # Trail (animated)
+        fig_3d.add_trace(go.Scatter3d(
+            x=pos[:1, 0], y=pos[:1, 2], z=pos[:1, 1],
+            mode='lines+markers',
+            marker=dict(size=3, color=[speed_padded[0]], colorscale='Viridis',
+                       colorbar=dict(title="Speed"), showscale=True, cmin=0, cmax=np.percentile(speed, 95)),
+            line=dict(color='rgba(100,100,100,0.7)', width=2),
+            name='Trail'
+        ))
+
+        # Current position (animated red marker)
         fig_3d.add_trace(go.Scatter3d(
             x=[pos[0, 0]], y=[pos[0, 2]], z=[pos[0, 1]],
             mode='markers',
-            marker=dict(size=10, color='green', symbol='diamond'),
-            name='Start'
+            marker=dict(size=14, color='red', line=dict(color='white', width=2)),
+            name='Head Position'
         ))
 
+        # Start/End markers (static)
+        fig_3d.add_trace(go.Scatter3d(
+            x=[pos[0, 0]], y=[pos[0, 2]], z=[pos[0, 1]],
+            mode='markers', marker=dict(size=8, color='green', symbol='diamond'),
+            name='Start'
+        ))
         fig_3d.add_trace(go.Scatter3d(
             x=[pos[-1, 0]], y=[pos[-1, 2]], z=[pos[-1, 1]],
-            mode='markers',
-            marker=dict(size=10, color='red', symbol='diamond'),
+            mode='markers', marker=dict(size=8, color='blue', symbol='diamond'),
             name='End'
         ))
 
+        # Create animation frames
+        frames = []
+        for idx in frame_indices:
+            trail_start = max(0, idx - trail_frames * frame_step)
+            t_pos = pos[trail_start:idx+1]
+            t_speed = speed_padded[trail_start:idx+1]
+
+            frames.append(go.Frame(
+                data=[
+                    go.Scatter3d(x=pos[:, 0], y=pos[:, 2], z=pos[:, 1]),  # Full path
+                    go.Scatter3d(x=t_pos[:, 0], y=t_pos[:, 2], z=t_pos[:, 1],
+                                marker=dict(size=3, color=t_speed, colorscale='Viridis',
+                                           cmin=0, cmax=np.percentile(speed, 95))),  # Trail
+                    go.Scatter3d(x=[pos[idx, 0]], y=[pos[idx, 2]], z=[pos[idx, 1]]),  # Current
+                    go.Scatter3d(x=[pos[0, 0]], y=[pos[0, 2]], z=[pos[0, 1]]),  # Start
+                    go.Scatter3d(x=[pos[-1, 0]], y=[pos[-1, 2]], z=[pos[-1, 1]])  # End
+                ],
+                name=str(idx)
+            ))
+
+        fig_3d.frames = frames
+
+        # Layout with Play/Pause and slider
         fig_3d.update_layout(
-            title=f"Head Trajectory - {selected_viz} ({data['activity']})",
+            title=f"Head Trajectory - {selected_viz} ({data['activity']}) - {len(frame_indices)} frames",
             scene=dict(
                 xaxis_title="X (Lateral)",
                 yaxis_title="Z (Forward)",
                 zaxis_title="Y (Vertical)",
                 aspectmode='data'
             ),
-            height=600
+            height=650,
+            updatemenus=[dict(
+                type="buttons",
+                showactive=False,
+                y=-0.05, x=0.0, xanchor="left",
+                buttons=[
+                    dict(label="▶ Play", method="animate",
+                         args=[None, {"frame": {"duration": 50, "redraw": True},
+                                     "fromcurrent": True, "transition": {"duration": 0}}]),
+                    dict(label="⏸ Pause", method="animate",
+                         args=[[None], {"frame": {"duration": 0, "redraw": False},
+                                       "mode": "immediate"}])
+                ]
+            )],
+            sliders=[dict(
+                active=0,
+                y=-0.02, x=0.15, len=0.8,
+                currentvalue={"prefix": "Time: ", "suffix": "s", "visible": True},
+                steps=[dict(args=[[str(idx)], {"frame": {"duration": 0, "redraw": True}, "mode": "immediate"}],
+                           label=f"{timestamps[idx]:.1f}", method="animate")
+                       for idx in frame_indices]
+            )]
         )
 
         st.plotly_chart(fig_3d, use_container_width=True)
+
+        st.caption("Use **Play/Pause** buttons and the **time slider** below the plot for smooth animation.")
 
         # 2D projections
         st.subheader("2D Projections")
