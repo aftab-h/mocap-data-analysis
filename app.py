@@ -631,6 +631,9 @@ requirements may be comparable across these use cases.
 
     fig_3d.frames = frames
 
+    # Calculate real-time frame duration (ms)
+    real_time_duration = int(frame_step / data['fps'] * 1000)
+
     # Calculate fixed axis ranges from full trajectory (with padding)
     padding = 0.1
     x_range = [pos[:, 0].min() - padding, pos[:, 0].max() + padding]
@@ -659,7 +662,7 @@ requirements may be comparable across these use cases.
             pad={"r": 10, "t": 10},
             buttons=[
                 dict(label="▶ Play", method="animate",
-                     args=[None, {"frame": {"duration": 50, "redraw": True},
+                     args=[None, {"frame": {"duration": real_time_duration, "redraw": True},
                                  "fromcurrent": True, "transition": {"duration": 0}}]),
                 dict(label="⏸ Pause", method="animate",
                      args=[[None], {"frame": {"duration": 0, "redraw": True},
