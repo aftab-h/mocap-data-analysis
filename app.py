@@ -764,25 +764,28 @@ requirements may be comparable across these use cases.
         showlegend=False,
         updatemenus=[dict(
             type="buttons",
-            showactive=True,
+            showactive=False,
             direction="left",
-            y=0.0, x=0.1, xanchor="left", yanchor="top",
-            pad={"r": 10, "t": 10},
+            y=-0.08, x=0.13, xanchor="right", yanchor="middle",
+            bgcolor="rgba(40, 40, 40, 0.9)",
+            bordercolor="rgba(60, 60, 60, 0.8)",
+            font=dict(color="white", size=14),
             buttons=[
-                dict(label="▶ Play", method="animate",
+                dict(label=" ▶ ", method="animate",
                      args=[None, {"frame": {"duration": real_time_duration, "redraw": True},
                                  "fromcurrent": True, "transition": {"duration": 0}}]),
-                dict(label="⏸ Pause", method="animate",
+                dict(label=" ⏸ ", method="animate",
                      args=[[None], {"frame": {"duration": 0, "redraw": True},
                                    "mode": "immediate"}])
             ]
         )],
         sliders=[dict(
             active=0,
-            y=0.0, x=0.3, len=0.65,
+            y=-0.08, x=0.15, len=0.83,
             currentvalue={"prefix": "Time: ", "suffix": "s", "visible": True},
             steps=[dict(args=[[str(idx)], {"frame": {"duration": 0, "redraw": True}, "mode": "immediate"}],
-                       label=f"{timestamps[idx]:.1f}", method="animate")
+                       label=f"{int(round(timestamps[idx]))}" if abs(timestamps[idx] - round(timestamps[idx])) < 0.05 else "",
+                       method="animate")
                    for idx in frame_indices]
         )]
     )
