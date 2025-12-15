@@ -99,11 +99,15 @@ def main():
             activities[act] = []
         activities[act].append(f)
 
+    # Auto-select walking and jumping by default for quick analysis
+    auto_select_activities = ['walking', 'jumping']
+
     selected_files = []
     for activity, files in activities.items():
         with st.sidebar.expander(f"{activity.title()} ({len(files)})", expanded=True):
             for f in files:
-                if st.checkbox(f"{f['filename']}", key=f['path']):
+                default_selected = activity.lower() in auto_select_activities
+                if st.checkbox(f"{f['filename']}", key=f['path'], value=default_selected):
                     selected_files.append(f)
 
     if not selected_files:
