@@ -176,7 +176,7 @@ It automates the full pipeline: loading BVH motion capture files, extracting hea
 kinematics, computing stability metrics, and running statistical comparisons between activities.
     """)
 
-    st.markdown("")
+    st.caption("This project is experimental and a work in progress.")
 
     # Color palette for activities (used throughout)
     activity_colors = px.colors.qualitative.Set2
@@ -193,7 +193,7 @@ kinematics, computing stability metrics, and running statistical comparisons bet
     display_df = display_df.round(2)
     st.dataframe(display_df, use_container_width=True, hide_index=True)
 
-    with st.expander("What do these metrics mean?"):
+    with st.expander("Notes"):
         st.markdown("""
 | Metric | Unit | Description |
 |--------|------|-------------|
