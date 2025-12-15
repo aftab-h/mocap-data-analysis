@@ -31,7 +31,7 @@ st.set_page_config(
     page_title="MoCap Head Stability Analysis",
     page_icon="🎧",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 
@@ -70,7 +70,7 @@ def load_and_process_file(path: str, filter_cutoff: float) -> dict:
 
 def main():
     # --- SIDEBAR ---
-    st.sidebar.title("Analysis Controls")
+    st.sidebar.title("Data Controls")
 
     # Data discovery
     data_dirs = [Path("data/sfu"), Path("data/raw")]
@@ -324,8 +324,6 @@ def main():
                     Cohen's d = {cohens_d:.2f} ({effect_label} effect)
                     """)
 
-                    if ratio > 1.1:
-                        st.info(f"{higher_name.title()} shows {ratio:.1f}x higher head speed")
 
             # Method explanation
             with st.expander("How is this calculated?"):
