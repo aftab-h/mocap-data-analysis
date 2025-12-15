@@ -149,8 +149,30 @@ def main():
     metrics_df = pd.DataFrame(all_metrics)
 
     # --- MAIN PAGE ---
-    st.title("Head Stability Analysis")
-    st.caption("Analyzing head movement patterns for audio device stability research")
+    import base64
+    img_path = Path(__file__).parent / "image_white.png"
+    with open(img_path, "rb") as f:
+        img_b64 = base64.b64encode(f.read()).decode()
+
+    st.markdown(
+        f'<h1 style="display: inline-flex; align-items: center; gap: 15px;">'
+        f'Head Stability Analysis '
+        f'<img src="data:image/png;base64,{img_b64}" width="50" style="vertical-align: middle;">'
+        f'</h1>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown("""
+This dashboard analyzes **motion capture data** to understand how the head moves during
+different activities like walking, jumping, and running. The goal is to inform the design
+of audio wearables (headphones, earbuds) by quantifying head stability — because a device
+that stays put during a walk might not survive a jog.
+
+It automates the full pipeline: loading BVH motion capture files, extracting head joint
+kinematics, computing stability metrics, and running statistical comparisons between activities.
+    """)
+
+    st.markdown("")
 
     # Color palette for activities (used throughout)
     activity_colors = px.colors.qualitative.Set2
@@ -283,7 +305,7 @@ def main():
                     y='mean_speed',
                     color='activity',
                     hover_data=['file', 'max_speed', 'stability_index'],
-                    labels={'mean_speed': 'Avg Speed (cm/s)', 'activity': 'Activity'},
+                    labels={'mean_speed': 'Avg Head Speed (cm/s)', 'activity': 'Activity'},
                     color_discrete_map=color_map
                 )
                 fig_strip.update_traces(marker=dict(size=12, opacity=0.7))
@@ -342,28 +364,34 @@ def main():
                     unsafe_allow_html=True
                 )
 
-                with st.expander("How is this calculated?"):
+                with st.expander("Notes"):
                     st.markdown("""
+**Head Speed Data**
+
+Each dot represents one BVH motion capture file. Head speed is calculated by:
+1. Extracting the head joint's 3D position from the BVH skeleton hierarchy
+2. Applying a low-pass Butterworth filter to remove sensor noise
+3. Computing frame-to-frame velocity (position change / time)
+4. Taking the magnitude (speed) of the velocity vector
+5. Averaging across all frames to get mean head speed for that recording
+
 **Statistical Test:** Welch's t-test (independent samples)
 
 *Why Welch's?* Unlike Student's t-test, Welch's does NOT assume equal variances
 between groups. This is more robust when comparing activities that may have
-different variability (e.g., running is more variable than walking).
+different variability (e.g., jumping is more variable than walking).
 
 **Effect Size:** Cohen's d (n ≥ 20) or Hedges' g (n < 20)
 
 Hedges' g applies a small-sample correction to Cohen's d, reducing bias
-when group sizes are under 20. Interpretation is the same for both:
+when group sizes are under 20. Interpretation:
 - < 0.2: negligible
-- 0.2-0.5: small
-- 0.5-0.8: medium
-- > 0.8: large
+- 0.2–0.5: small
+- 0.5–0.8: medium
+- \> 0.8: large
 
-A large effect size means the difference is meaningful in practice,
+A large effect size means the difference is practically meaningful,
 not just statistically detectable.
-
-**Strip Plot:** Each dot is one motion capture file. This shows you the
-actual data distribution, not just summary statistics.
                     """)
     else:
         st.info("Select files from multiple activities to see comparison")
@@ -542,15 +570,6 @@ requirements may be comparable across these use cases.
     # Build animated 3D figure
     fig_3d = go.Figure()
 
-    # Full path (static background)
-    fig_3d.add_trace(go.Scatter3d(
-        x=pos[:, 0], y=pos[:, 2], z=pos[:, 1],
-        mode='lines',
-        line=dict(color='rgba(150,150,150,0.25)', width=1),
-        name='Full Path',
-        hoverinfo='skip'
-    ))
-
     # Trail (animated)
     fig_3d.add_trace(go.Scatter3d(
         x=pos[:1, 0], y=pos[:1, 2], z=pos[:1, 1],
@@ -590,7 +609,6 @@ requirements may be comparable across these use cases.
 
         frames.append(go.Frame(
             data=[
-                go.Scatter3d(x=pos[:, 0], y=pos[:, 2], z=pos[:, 1]),
                 go.Scatter3d(x=t_pos[:, 0], y=t_pos[:, 2], z=t_pos[:, 1],
                             marker=dict(size=3, color=t_speed, colorscale='Viridis',
                                        cmin=0, cmax=np.percentile(speed, 95))),
@@ -607,31 +625,34 @@ requirements may be comparable across these use cases.
     fig_3d.update_layout(
         title=f"Head Trajectory - {selected_viz} ({data['activity']})",
         scene=dict(
-            xaxis_title="X (Lateral)",
-            yaxis_title="Z (Forward)",
-            zaxis_title="Y (Vertical)",
+            xaxis_title="X - Lateral (cm)",
+            yaxis_title="Z - Forward (cm)",
+            zaxis_title="Y - Vertical (cm)",
             aspectmode='data',
             camera=dict(projection=dict(type='perspective'))
         ),
         uirevision='constant',
         scene_camera=dict(eye=dict(x=1.5, y=1.5, z=1.5)),
         height=600,
+        showlegend=False,
         updatemenus=[dict(
             type="buttons",
-            showactive=False,
-            y=-0.05, x=0.0, xanchor="left",
+            showactive=True,
+            direction="left",
+            y=0.0, x=0.1, xanchor="left", yanchor="top",
+            pad={"r": 10, "t": 10},
             buttons=[
-                dict(label="Play", method="animate",
+                dict(label="▶ Play", method="animate",
                      args=[None, {"frame": {"duration": 50, "redraw": True},
                                  "fromcurrent": True, "transition": {"duration": 0}}]),
-                dict(label="Pause", method="animate",
+                dict(label="⏸ Pause", method="animate",
                      args=[[None], {"frame": {"duration": 0, "redraw": True},
                                    "mode": "immediate"}])
             ]
         )],
         sliders=[dict(
             active=0,
-            y=-0.02, x=0.15, len=0.8,
+            y=0.0, x=0.3, len=0.65,
             currentvalue={"prefix": "Time: ", "suffix": "s", "visible": True},
             steps=[dict(args=[[str(idx)], {"frame": {"duration": 0, "redraw": True}, "mode": "immediate"}],
                        label=f"{timestamps[idx]:.1f}", method="animate")
