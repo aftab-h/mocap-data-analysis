@@ -556,24 +556,54 @@ requirements may be comparable across these use cases.
 
     # Head dimensions (in cm)
     head_radius = 10.0  # ~20cm diameter human head
+    ear_radius = 2.5    # Small ear spheres
     nose_length = head_radius + 2.0  # Nose extends past head surface
 
-    # Generate sphere mesh for head (low-poly for performance)
-    def create_sphere_mesh(center, radius, resolution=12):
-        """Create sphere vertices and faces centered at a point."""
+    # Generate sphere/ellipsoid mesh (low-poly for performance)
+    def create_sphere_mesh(center, radius, resolution=12, scale=(1, 1, 1)):
+        """Create sphere/ellipsoid vertices centered at a point.
+
+        scale: (sx, sy, sz) to create ellipsoid - e.g., (1, 0.3, 1) for flat disc
+        """
         phi = np.linspace(0, np.pi, resolution)
         theta = np.linspace(0, 2 * np.pi, resolution)
         phi, theta = np.meshgrid(phi, theta)
 
-        x = center[0] + radius * np.sin(phi) * np.cos(theta)
-        y = center[1] + radius * np.sin(phi) * np.sin(theta)
-        z = center[2] + radius * np.cos(phi)
+        x = center[0] + radius * scale[0] * np.sin(phi) * np.cos(theta)
+        y = center[1] + radius * scale[1] * np.sin(phi) * np.sin(theta)
+        z = center[2] + radius * scale[2] * np.cos(phi)
 
         return x.flatten(), y.flatten(), z.flatten()
+
+    def get_ear_positions(head_center, orient_idx):
+        """Get left and right ear positions based on head orientation."""
+        # Right direction is perpendicular to forward (cross product of forward and up)
+        forward = orientation[orient_idx]
+        up = np.array([0, 1, 0])  # World up
+        right = np.cross(forward, up)
+        if np.linalg.norm(right) > 0.01:
+            right = right / np.linalg.norm(right)
+        else:
+            right = np.array([1, 0, 0])  # Fallback
+
+        ear_offset = head_radius * 0.9  # Ears at edge of head
+        left_ear = head_center + right * ear_offset
+        right_ear = head_center - right * ear_offset
+        return left_ear, right_ear
 
     # Initial head sphere position (note: y and z swapped for display)
     head_x, head_y, head_z = create_sphere_mesh(
         [pos[0, 0], pos[0, 2], pos[0, 1]], head_radius
+    )
+
+    # Initial ear positions (flattened ellipsoids)
+    ear_scale = (0.3, 1, 1)  # Flat in x direction (perpendicular to head)
+    left_ear, right_ear = get_ear_positions(pos[0], 0)
+    left_ear_x, left_ear_y, left_ear_z = create_sphere_mesh(
+        [left_ear[0], left_ear[2], left_ear[1]], ear_radius, resolution=8, scale=ear_scale
+    )
+    right_ear_x, right_ear_y, right_ear_z = create_sphere_mesh(
+        [right_ear[0], right_ear[2], right_ear[1]], ear_radius, resolution=8, scale=ear_scale
     )
 
     # Animation settings
@@ -625,6 +655,24 @@ requirements may be comparable across these use cases.
         name='Head'
     ))
 
+    # Left ear
+    fig_3d.add_trace(go.Mesh3d(
+        x=left_ear_x, y=left_ear_y, z=left_ear_z,
+        alphahull=0,
+        color='rgba(100, 200, 255, 0.4)',
+        opacity=0.4,
+        name='Left Ear'
+    ))
+
+    # Right ear
+    fig_3d.add_trace(go.Mesh3d(
+        x=right_ear_x, y=right_ear_y, z=right_ear_z,
+        alphahull=0,
+        color='rgba(100, 200, 255, 0.4)',
+        opacity=0.4,
+        name='Right Ear'
+    ))
+
     # Nose direction indicator (line from head center)
     nose_end = pos[0] + orientation[0] * nose_length
     fig_3d.add_trace(go.Scatter3d(
@@ -663,6 +711,11 @@ requirements may be comparable across these use cases.
             [pos[idx, 0], pos[idx, 2], pos[idx, 1]], head_radius
         )
 
+        # Calculate ear positions for this frame (flattened)
+        l_ear, r_ear = get_ear_positions(pos[idx], idx)
+        lex, ley, lez = create_sphere_mesh([l_ear[0], l_ear[2], l_ear[1]], ear_radius, resolution=8, scale=ear_scale)
+        rex, rey, rez = create_sphere_mesh([r_ear[0], r_ear[2], r_ear[1]], ear_radius, resolution=8, scale=ear_scale)
+
         frames.append(go.Frame(
             data=[
                 go.Scatter3d(x=pos[:, 0], y=pos[:, 2], z=pos[:, 1]),  # Anchor (unchanged)
@@ -671,6 +724,10 @@ requirements may be comparable across these use cases.
                                        cmin=0, cmax=np.percentile(speed, 95))),
                 go.Mesh3d(x=hx, y=hy, z=hz, alphahull=0,
                          color='rgba(100, 200, 255, 0.4)', opacity=0.4),  # Head sphere
+                go.Mesh3d(x=lex, y=ley, z=lez, alphahull=0,
+                         color='rgba(100, 200, 255, 0.4)', opacity=0.4),  # Left ear
+                go.Mesh3d(x=rex, y=rey, z=rez, alphahull=0,
+                         color='rgba(100, 200, 255, 0.4)', opacity=0.4),  # Right ear
                 go.Scatter3d(x=[pos[idx, 0], nose_end_frame[0]],
                             y=[pos[idx, 2], nose_end_frame[2]],
                             z=[pos[idx, 1], nose_end_frame[1]]),  # Nose direction
