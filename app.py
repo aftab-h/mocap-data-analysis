@@ -554,8 +554,27 @@ requirements may be comparable across these use cases.
     timestamps = data['timestamps']
     n_frames = len(pos)
 
-    # Nose direction length (in cm) - roughly head radius
-    nose_length = 1.0
+    # Head dimensions (in cm)
+    head_radius = 10.0  # ~20cm diameter human head
+    nose_length = head_radius + 2.0  # Nose extends past head surface
+
+    # Generate sphere mesh for head (low-poly for performance)
+    def create_sphere_mesh(center, radius, resolution=12):
+        """Create sphere vertices and faces centered at a point."""
+        phi = np.linspace(0, np.pi, resolution)
+        theta = np.linspace(0, 2 * np.pi, resolution)
+        phi, theta = np.meshgrid(phi, theta)
+
+        x = center[0] + radius * np.sin(phi) * np.cos(theta)
+        y = center[1] + radius * np.sin(phi) * np.sin(theta)
+        z = center[2] + radius * np.cos(phi)
+
+        return x.flatten(), y.flatten(), z.flatten()
+
+    # Initial head sphere position (note: y and z swapped for display)
+    head_x, head_y, head_z = create_sphere_mesh(
+        [pos[0, 0], pos[0, 2], pos[0, 1]], head_radius
+    )
 
     # Animation settings
     frame_step = st.select_slider(
@@ -597,12 +616,12 @@ requirements may be comparable across these use cases.
         name='Trail'
     ))
 
-    # Current head position (semi-transparent sphere)
-    fig_3d.add_trace(go.Scatter3d(
-        x=[pos[0, 0]], y=[pos[0, 2]], z=[pos[0, 1]],
-        mode='markers',
-        marker=dict(size=12, color='rgba(100, 200, 255, 0.5)',
-                    line=dict(color='rgba(255,255,255,0.8)', width=1)),
+    # Current head position (scaled 3D mesh sphere)
+    fig_3d.add_trace(go.Mesh3d(
+        x=head_x, y=head_y, z=head_z,
+        alphahull=0,
+        color='rgba(100, 200, 255, 0.4)',
+        opacity=0.4,
         name='Head'
     ))
 
@@ -639,13 +658,19 @@ requirements may be comparable across these use cases.
         # Calculate nose endpoint for this frame
         nose_end_frame = pos[idx] + orientation[idx] * nose_length
 
+        # Calculate head sphere for this frame
+        hx, hy, hz = create_sphere_mesh(
+            [pos[idx, 0], pos[idx, 2], pos[idx, 1]], head_radius
+        )
+
         frames.append(go.Frame(
             data=[
                 go.Scatter3d(x=pos[:, 0], y=pos[:, 2], z=pos[:, 1]),  # Anchor (unchanged)
                 go.Scatter3d(x=t_pos[:, 0], y=t_pos[:, 2], z=t_pos[:, 1],
                             marker=dict(size=3, color=t_speed, colorscale='Viridis',
                                        cmin=0, cmax=np.percentile(speed, 95))),
-                go.Scatter3d(x=[pos[idx, 0]], y=[pos[idx, 2]], z=[pos[idx, 1]]),  # Head
+                go.Mesh3d(x=hx, y=hy, z=hz, alphahull=0,
+                         color='rgba(100, 200, 255, 0.4)', opacity=0.4),  # Head sphere
                 go.Scatter3d(x=[pos[idx, 0], nose_end_frame[0]],
                             y=[pos[idx, 2], nose_end_frame[2]],
                             z=[pos[idx, 1], nose_end_frame[1]]),  # Nose direction
