@@ -424,8 +424,11 @@ def main():
                 xaxis_title="X (Lateral)",
                 yaxis_title="Z (Forward)",
                 zaxis_title="Y (Vertical)",
-                aspectmode='data'
+                aspectmode='data',
+                camera=dict(projection=dict(type='orthographic'))  # Optional: orthographic view
             ),
+            uirevision='constant',  # Preserve camera position during animation
+            scene_camera=dict(eye=dict(x=1.5, y=1.5, z=1.5)),  # Default starting view
             height=650,
             updatemenus=[dict(
                 type="buttons",
@@ -433,7 +436,7 @@ def main():
                 y=-0.05, x=0.0, xanchor="left",
                 buttons=[
                     dict(label="▶ Play", method="animate",
-                         args=[None, {"frame": {"duration": 50, "redraw": True},
+                         args=[None, {"frame": {"duration": 50, "redraw": False},
                                      "fromcurrent": True, "transition": {"duration": 0}}]),
                     dict(label="⏸ Pause", method="animate",
                          args=[[None], {"frame": {"duration": 0, "redraw": False},
