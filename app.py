@@ -176,7 +176,7 @@ It automates the full pipeline: loading BVH motion capture files, extracting hea
 kinematics, computing stability metrics, and running statistical comparisons between activities.
     """)
 
-    st.caption("This project is experimental and a work in progress.")
+    st.caption("This project is experimental and a work in progress. Data from the [SFU Motion Capture Database](http://mocap.cs.sfu.ca/) is used for demonstration purposes.")
 
     # Color palette for activities (used throughout)
     activity_colors = px.colors.qualitative.Set2

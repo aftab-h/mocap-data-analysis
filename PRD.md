@@ -5,6 +5,8 @@
 **Last Updated:** December 2024
 **Status:** Experimental / Work in Progress
 
+> **Note:** This project uses publicly available motion capture data from the [SFU Motion Capture Database](http://mocap.cs.sfu.ca/) (Simon Fraser University) for demonstration purposes.
+
 ---
 
 ## 1. Executive Summary
