@@ -493,9 +493,20 @@ requirements may be comparable across these use cases.
     st.markdown("---")
     st.header("Speed Profile")
 
+    # File selector for speed profile
+    all_files = [d['file'] for d in all_data]
+    selected_speed_files = st.multiselect(
+        "Select files to display",
+        all_files,
+        default=[all_files[0]] if all_files else [],
+        key='speed_profile_select'
+    )
+
     fig_speed = go.Figure()
 
     for data in all_data:
+        if data['file'] not in selected_speed_files:
+            continue
         timestamps = data['timestamps'][:-1]  # Speed has one less point
         speed = data['speed']
 
@@ -503,11 +514,13 @@ requirements may be comparable across these use cases.
         high_motion = detect_high_motion_events(speed, threshold_percentile=95)
 
         # Main speed trace
+        trace_group = data['file']  # Group trace with its markers
         fig_speed.add_trace(go.Scatter(
             x=timestamps,
             y=speed,
             mode='lines',
             name=f"{data['file']} ({data['activity']})",
+            legendgroup=trace_group,
             line=dict(color=color_map[data['activity']], width=1.5),
             hovertemplate="Time: %{x:.2f}s<br>Speed: %{y:.2f} cm/s"
         ))
@@ -522,6 +535,7 @@ requirements may be comparable across these use cases.
                 mode='markers',
                 marker=dict(size=6, color='red', symbol='circle', opacity=0.6),
                 name=f"High motion ({data['file']})",
+                legendgroup=trace_group,
                 showlegend=False,
                 hovertemplate="HIGH MOTION<br>Time: %{x:.2f}s<br>Speed: %{y:.2f} cm/s"
             ))
