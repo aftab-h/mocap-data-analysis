@@ -49,6 +49,9 @@ def load_and_process_file(path: str, filter_cutoff: float) -> dict:
     head_pos = parser.get_joint_positions(head_joint)
     filtered_pos = butter_lowpass_filter(head_pos, filter_cutoff, parser.fps)
 
+    # Get head orientation (nose direction)
+    head_orientation = parser.get_joint_orientations(head_joint)
+
     # Calculate metrics
     metrics = calculate_head_stability_metrics(filtered_pos, parser.fps)
 
@@ -58,6 +61,7 @@ def load_and_process_file(path: str, filter_cutoff: float) -> dict:
 
     return {
         'positions': filtered_pos,
+        'orientation': head_orientation,
         'speed': speed,
         'timestamps': parser.get_timestamps(),
         'metrics': metrics,
@@ -545,9 +549,13 @@ requirements may be comparable across these use cases.
 
     data = next(d for d in all_data if d['file'] == selected_viz)
     pos = data['positions']
+    orientation = data['orientation']
     speed = data['speed']
     timestamps = data['timestamps']
     n_frames = len(pos)
+
+    # Nose direction length (in cm) - roughly head radius
+    nose_length = 1.0
 
     # Animation settings
     frame_step = st.select_slider(
@@ -589,12 +597,24 @@ requirements may be comparable across these use cases.
         name='Trail'
     ))
 
-    # Current position (animated red marker)
+    # Current head position (semi-transparent sphere)
     fig_3d.add_trace(go.Scatter3d(
         x=[pos[0, 0]], y=[pos[0, 2]], z=[pos[0, 1]],
         mode='markers',
-        marker=dict(size=14, color='red', line=dict(color='white', width=2)),
-        name='Head Position'
+        marker=dict(size=12, color='rgba(100, 200, 255, 0.5)',
+                    line=dict(color='rgba(255,255,255,0.8)', width=1)),
+        name='Head'
+    ))
+
+    # Nose direction indicator (line from head center)
+    nose_end = pos[0] + orientation[0] * nose_length
+    fig_3d.add_trace(go.Scatter3d(
+        x=[pos[0, 0], nose_end[0]],
+        y=[pos[0, 2], nose_end[2]],
+        z=[pos[0, 1], nose_end[1]],
+        mode='lines',
+        line=dict(color='rgba(255, 100, 100, 0.9)', width=6),
+        name='Nose Direction'
     ))
 
     # Start/End markers
@@ -616,15 +636,21 @@ requirements may be comparable across these use cases.
         t_pos = pos[trail_start:idx+1]
         t_speed = speed_padded[trail_start:idx+1]
 
+        # Calculate nose endpoint for this frame
+        nose_end_frame = pos[idx] + orientation[idx] * nose_length
+
         frames.append(go.Frame(
             data=[
                 go.Scatter3d(x=pos[:, 0], y=pos[:, 2], z=pos[:, 1]),  # Anchor (unchanged)
                 go.Scatter3d(x=t_pos[:, 0], y=t_pos[:, 2], z=t_pos[:, 1],
                             marker=dict(size=3, color=t_speed, colorscale='Viridis',
                                        cmin=0, cmax=np.percentile(speed, 95))),
-                go.Scatter3d(x=[pos[idx, 0]], y=[pos[idx, 2]], z=[pos[idx, 1]]),
-                go.Scatter3d(x=[pos[0, 0]], y=[pos[0, 2]], z=[pos[0, 1]]),
-                go.Scatter3d(x=[pos[-1, 0]], y=[pos[-1, 2]], z=[pos[-1, 1]])
+                go.Scatter3d(x=[pos[idx, 0]], y=[pos[idx, 2]], z=[pos[idx, 1]]),  # Head
+                go.Scatter3d(x=[pos[idx, 0], nose_end_frame[0]],
+                            y=[pos[idx, 2], nose_end_frame[2]],
+                            z=[pos[idx, 1], nose_end_frame[1]]),  # Nose direction
+                go.Scatter3d(x=[pos[0, 0]], y=[pos[0, 2]], z=[pos[0, 1]]),  # Start
+                go.Scatter3d(x=[pos[-1, 0]], y=[pos[-1, 2]], z=[pos[-1, 1]])  # End
             ],
             name=str(idx)
         ))
@@ -634,8 +660,8 @@ requirements may be comparable across these use cases.
     # Calculate real-time frame duration (ms)
     real_time_duration = int(frame_step / data['fps'] * 1000)
 
-    # Calculate fixed axis ranges from full trajectory (with padding)
-    padding = 0.1
+    # Calculate fixed axis ranges from full trajectory (with padding for nose)
+    padding = nose_length + 0.5  # Extra buffer beyond nose length
     x_range = [pos[:, 0].min() - padding, pos[:, 0].max() + padding]
     y_range = [pos[:, 2].min() - padding, pos[:, 2].max() + padding]  # Z mapped to Y axis
     z_range = [pos[:, 1].min() - padding, pos[:, 1].max() + padding]  # Y mapped to Z axis
@@ -644,10 +670,10 @@ requirements may be comparable across these use cases.
     fig_3d.update_layout(
         title=f"Head Trajectory - {selected_viz} ({data['activity']})",
         scene=dict(
-            xaxis=dict(title="X - Lateral (cm)", range=x_range),
-            yaxis=dict(title="Z - Forward (cm)", range=y_range),
-            zaxis=dict(title="Y - Vertical (cm)", range=z_range),
-            aspectmode='data',
+            xaxis=dict(title="X - Lateral (cm)", range=x_range, autorange=False),
+            yaxis=dict(title="Z - Forward (cm)", range=y_range, autorange=False),
+            zaxis=dict(title="Y - Vertical (cm)", range=z_range, autorange=False),
+            aspectmode='cube',
             camera=dict(projection=dict(type='perspective'))
         ),
         uirevision='constant',

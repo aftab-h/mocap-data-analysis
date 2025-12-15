@@ -243,6 +243,42 @@ class BVHParser:
         """List all available joints."""
         return list(self.joints.keys())
 
+    def get_joint_orientations(self, joint_name: str) -> np.ndarray:
+        """
+        Get the forward direction vector (nose direction) for a joint across all frames.
+
+        Returns:
+            np.ndarray: Shape (num_frames, 3) with forward direction unit vectors
+        """
+        if joint_name not in self.joints:
+            raise ValueError(f"Joint '{joint_name}' not found.")
+
+        orientations = np.zeros((self.num_frames, 3))
+
+        for frame_idx in range(self.num_frames):
+            # Get world rotation matrix for this joint
+            rotation_matrix = self._get_world_rotation(joint_name, frame_idx)
+            # Forward direction is typically the Z axis (column 2)
+            forward = rotation_matrix[:, 2]
+            orientations[frame_idx] = forward
+
+        return orientations
+
+    def _get_world_rotation(self, joint_name: str, frame_idx: int) -> np.ndarray:
+        """Get world rotation matrix for a joint at a specific frame."""
+        chain = []
+        current = joint_name
+        while current is not None:
+            chain.insert(0, current)
+            current = self.joints[current]['parent']
+
+        rotation_matrix = np.eye(3)
+        for jname in chain:
+            local_rotation = self._get_joint_rotation(jname, frame_idx)
+            rotation_matrix = rotation_matrix @ local_rotation
+
+        return rotation_matrix
+
     def to_dataframe(self, joints: Optional[List[str]] = None) -> pd.DataFrame:
         """
         Convert motion data to a pandas DataFrame.
