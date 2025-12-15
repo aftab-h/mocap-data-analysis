@@ -621,13 +621,19 @@ requirements may be comparable across these use cases.
 
     fig_3d.frames = frames
 
+    # Calculate fixed axis ranges from full trajectory (with padding)
+    padding = 0.1
+    x_range = [pos[:, 0].min() - padding, pos[:, 0].max() + padding]
+    y_range = [pos[:, 2].min() - padding, pos[:, 2].max() + padding]  # Z mapped to Y axis
+    z_range = [pos[:, 1].min() - padding, pos[:, 1].max() + padding]  # Y mapped to Z axis
+
     # Layout with Play/Pause and slider
     fig_3d.update_layout(
         title=f"Head Trajectory - {selected_viz} ({data['activity']})",
         scene=dict(
-            xaxis_title="X - Lateral (cm)",
-            yaxis_title="Z - Forward (cm)",
-            zaxis_title="Y - Vertical (cm)",
+            xaxis=dict(title="X - Lateral (cm)", range=x_range),
+            yaxis=dict(title="Z - Forward (cm)", range=y_range),
+            zaxis=dict(title="Y - Vertical (cm)", range=z_range),
             aspectmode='data',
             camera=dict(projection=dict(type='perspective'))
         ),
