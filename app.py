@@ -29,7 +29,6 @@ from download_data import download_trials, list_available_files, get_trial_info
 # Page config
 st.set_page_config(
     page_title="MoCap Head Stability Analysis",
-    page_icon="🎧",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
