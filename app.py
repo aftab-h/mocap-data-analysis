@@ -167,13 +167,12 @@ def main():
     )
 
     st.markdown("""
-This dashboard analyzes **motion capture data** to understand how the head moves during
-different activities like walking, jumping, and running. The goal is to inform the design
-of audio wearables (headphones, earbuds) by quantifying head stability — because a device
-that stays put during a walk might not survive a jog.
+I developed this dashboard to analyze **motion capture data** and explore how the head moves during
+different activities like walking, jumping, and running. This project was created for my own exploration and proof-of-concept. My goal was to approach analysis that could inform the design
+of audio wearables (headphones, earbuds) by quantifying head stability (e.g. it would not be desired for headphones to fall out during rigorous activity).
 
-It automates the full pipeline: loading BVH motion capture files, extracting head joint
-kinematics, computing stability metrics, and running statistical comparisons between activities.
+This attempts to automate loading BVH motion capture files, extract head joint
+kinematics, compute stability metrics, and run statistical comparisons between activities.
     """)
 
     st.caption("This project is experimental and a work in progress. Data from the [SFU Motion Capture Database](http://mocap.cs.sfu.ca/) is used for demonstration purposes.")
